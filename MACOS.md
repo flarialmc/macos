@@ -1,13 +1,27 @@
-# Flarial Launcher for macOS: feasibility and port plan
+# Flarial Launcher for macOS
 
 This repo is a fork of [flarialmc/linux](https://github.com/flarialmc/linux) (remote `upstream`). The goal is the same launcher on
 macOS (Apple Silicon first): run the Windows GDK build of Minecraft Bedrock under Wine and inject the Flarial client.
 
-## Verdict
+## Status
 
-**Feasible, but the hard part is the engine, not the launcher.** The launcher side is about 2 to 3 weeks of work. The engine (a
-WineGDK build that runs on macOS with a working graphics path) is the real risk. Nobody has publicly shown Bedrock GDK running on a
-Mac yet, so the first milestone has to prove that before anything else is ported.
+**Working on Apple Silicon (verified 2026-10-13, macOS 26.6):** a prefix built by the launcher's own backend runs Minecraft 1.26.50 (GDK)
+to an online main menu, with rendering through DXMT and the xgameruntime shim handling GDK. Not yet verified end to end: the launch going
+through `xodus-cli run` (download + licence check + decrypt) and client injection.
+
+How the engine works:
+
+- **Wine 11.0** (Gcenx's macOS build, as shipped in WhiskyWine 3.1.1), x86_64 under Rosetta 2. The Whisky app is not used, only the engine.
+- **DXMT 0.80** (D3D11 to Metal). Minecraft prefers D3D12, so the launcher puts a stub `d3d12.dll` next to the exe
+  (`src/Flarial.Runtime.Mac/Native/shims/d3d12stub`). The stub refuses device creation, so the game falls back to its D3D11 renderer.
+- **xgameruntime.dll / mcwinrt.dll shims** in place of WineGDK: GDK runtime providers (XAsync/XTaskQueue, XSystem, XNetworking, XUser
+  device-code sign-in) and the WinRT classes Wine lacks. The sources are in `Native/shims`; rebuild them with `Native/build-shims.sh`.
+- **xodus-cli** built for arm64 from [flarialmc/xodus](https://github.com/flarialmc/xodus) branch `flarial-macos` (upstream + the
+  BedrockOnLinux patches). Whisky's Wine has no `WINE_DLL_FILE_MAP`, so the launch wrapper mirrors the game folder into a private RAM disk
+  with the decrypted files and runs Wine from there.
+
+Remaining before a release: publish the engine and xodus release assets (their SHA-256 pins are placeholders), package a signed `.app`,
+an end-to-end launch with injection, and controllers (the GameInput service crashes under Wine; keyboard and mouse work).
 
 ## What carries over unchanged
 
@@ -19,48 +33,28 @@ Mac yet, so the first milestone has to prove that before anything else is ported
 | Xbox device-code auth (`Xbox/`) | Plain HTTPS. |
 | Prefix registry edits (`HiveEdit`), account payload | File and Wine-level operations. |
 
-## What has to be replaced
+## What was replaced
 
-| Linux piece | macOS replacement | Effort |
+`src/Flarial.Runtime.Mac` compiles the OS-neutral sources of `Flarial.Runtime.Linux` unchanged and swaps out the Linux-specific files
+(see the `Exclude` list in its csproj). The public type names stay the same, so the launcher UI is shared. `src/Directory.Build.props`
+selects the Mac backend when building on macOS (`FlarialMac=true`, define `MACOS`).
+
+| Linux piece | macOS replacement | State |
 |---|---|---|
-| GDK-Proton engine + vkd3d-proton (D3D12 to Vulkan) | WineGDK patches rebuilt on a macOS Wine (winemac.drv, wow64, x86_64 under Rosetta 2) with a Metal graphics layer. See "Engine" below. | **Large / risky** |
-| `umu-run` + Steam Linux Runtime | Drop it. Run `wine` directly; macOS has no container. | Small |
-| `xodus-cli` (Linux build from BedrockOnLinux) | Build xodus (Rust, GPL-3.0) for `aarch64-apple-darwin`. Its webview is wry, which supports macOS (WKWebView). | Medium |
-| `/proc` scanning (`ProcScan`, `FindGamePid`, `IsModuleLoaded` via `/proc/pid/maps`, `/proc/self/status`) | `sysctl(KERN_PROCARGS2)` / `proc_pidinfo` via P/Invoke for argv and env. Module check through the injector (ask Wine, e.g. `EnumProcessModules` in `injector.exe`) since Mach has no `/proc/pid/maps` that shows PE mappings. | Medium |
-| `secret-tool` (libsecret) | Keychain through `/usr/bin/security add-generic-password / find-generic-password`. | Small |
-| `xdg-open`, `xprop`, `setsid`, `script` | `open`, window check via `CGWindowListCopyWindowInfo` (or drop it), `posix_spawn` with a new session, a pty from `openpty`. | Small |
-| `XDG_*` paths (`~/.local/share/Flarial/Linux`) | `~/Library/Application Support/Flarial/macOS`. | Small |
-| `launch-wrapper.sh` | Rewrite without umu/pressure-vessel; the go-file handshake stays. | Small |
-| Install / update (`install.sh`, AUR, self-updater) | Signed `.app` bundle in a DMG. Needs an Apple Developer ID for notarisation, otherwise users must right-click > Open. | Medium |
+| GDK-Proton + vkd3d-proton, WineGDK | Wine 11 + DXMT with a D3D12 stub; xgameruntime/mcwinrt shims (`Prefix/PrefixManager.cs`) | Verified: online main menu |
+| `umu-run` + Steam Linux Runtime | Dropped; `wine64` runs directly | Done |
+| `WINEGDK_PREAUTH_DEVICE` / registry refresh token | `%APPDATA%\xgr\auth.json` for the shim, synced both ways (`Prefix/XgrAuthBridge.cs`) | Written, not yet verified |
+| `xodus-cli` (BedrockOnLinux Linux build) | arm64 build of flarialmc/xodus `flarial-macos`, file keyring | Built |
+| memfd + `WINE_DLL_FILE_MAP` staging | RAM-disk mirror of the game folder (`Resources/launch-wrapper.sh`) | Written, not yet verified |
+| `/proc` scanning | `KERN_PROCARGS2` + `proc_listallpids`. macOS hides other processes' environment, so prefix processes are the ones running our engine's Wine, xodus-cli or the wrapper (`Launch/ProcScan.cs`) | Self-test passes |
+| `/proc/pid/maps` module check | libproc region scan plus the last successful injection (`InjectorCore.cs`, `#if MACOS`) | Written |
+| `xprop` window check | `CGWindowListCopyWindowInfo` owner pid (`Launch/GameWatch.cs`) | Self-test passes |
+| `secret-tool` | Keychain via Security.framework (`MacCredentialStore.cs`) | Written |
+| `xdg-open`, zenity, `setsid`, util-linux `script` | `open`, osascript alert, plain spawn, BSD `script` | Done |
+| `~/.local/share/Flarial/Linux` | `~/Library/Application Support/Flarial/macOS` | Done |
+| distro packages check | Rosetta 2 check and install via the admin prompt (`SystemDependencies.cs`) | Self-test passes |
+| `install.sh` / AUR / self-updater | Signed `.app` in a DMG | To do |
 
-## Engine (the risk)
-
-Bedrock GDK needs three things from Wine: the WineGDK components (GDK runtime, XGameRuntime, XUser), working D3D, and Rosetta-able
-x86_64 code.
-
-1. **WineGDK on macOS.** [Weather-OS/WineGDK](https://github.com/Weather-OS/WineGDK) is a Wine fork with no macOS-specific code
-   removed, so it should build with the normal macOS Wine toolchain (Gcenx's build scripts, mingw for the PE side, wow64 mode so no
-   32-bit host libs are needed). Nobody has published such a build. This is the first thing to try.
-2. **Graphics.** Minecraft GDK renders **only through D3D12** (BedrockOnLinux CHANGELOG, issue #63). That rules out DXMT and
-   DXVK, which are D3D11-only. Options, best first:
-   - **D3DMetal (Apple Game Porting Toolkit).** D3D12 to Metal, best performance. Closed source: the launcher cannot ship it, but
-     it can use a copy the user downloads from Apple (as Whisky/Sikarugir do).
-   - **vkd3d (upstream Wine's D3D12) on MoltenVK.** Open source and shippable. Slower and likely to have rendering bugs;
-     vkd3d-proton (the Linux choice) needs Vulkan features MoltenVK lacks.
-   - **A DXMT-style D3D12 to Metal layer.** Possible in principle, but DXMT took years for D3D11 alone; not a realistic first step.
-3. **CPU.** Rosetta 2 handles x86_64 including AVX2 on current macOS, which covers Minecraft and the client DLL.
-
-Fast way to test before building anything: a CrossOver trial on this Mac (CrossOver 26 has D3DMetal 3). It will not have
-the WineGDK pieces, so the game may not get past start-up, but it shows whether the graphics side renders.
-
-## Milestones
-
-1. **Engine spike (go/no-go).** Build WineGDK for macOS, decrypt a game with xodus on Linux or a macOS xodus build, run
-   `Minecraft.Windows.exe` with D3DMetal (then vkd3d + MoltenVK). Done when the main menu renders.
-2. **Inject.** Run `injector.exe` against it and confirm the Flarial client loads (bcrypt shim included).
-3. **Backend.** Add `src/Flarial.Runtime.Mac` implementing `IGameService`, `IInjector`, `IMicrosoftAccount`, `ICredentialStore`,
-   reusing the Linux modules that are OS-neutral (move them to a shared project instead of copying).
-4. **UI + packaging.** `Avalonia.Native`, `.app` bundle, DMG, updater.
-
-If milestone 1 fails, the fallback is a launcher that installs into a user-provided CrossOver/GPTK bottle, which works only if those
-gain GDK support.
+Self-tests (use a scratch HOME; `FLARIAL_MAC_SEED_ENGINE=<Libraries dir>` links an existing engine instead of downloading it):
+`--selftest-dependencies`, `--selftest-procscan`, `--selftest-engine`, `--selftest-prefix` (`FLARIAL_GAME_DIR=<unpacked game>` also
+installs GameInput), `--selftest-payload`, `--selftest-import`.
