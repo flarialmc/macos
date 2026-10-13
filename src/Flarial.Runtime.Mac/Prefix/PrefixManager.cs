@@ -16,7 +16,7 @@ namespace Flarial.Runtime.Linux.Prefix;
 /// </summary>
 internal sealed class PrefixManager(IEngine engine) : IPrefix
 {
-    const int SetupVersion = 1; // bump to re-apply shims and registry tweaks
+    const int SetupVersion = 2; // bump to re-apply shims and registry tweaks
 
     static readonly string[] SystemShims = ["xgameruntime.dll", "mcwinrt.dll", "flarial_vault.dll"];
 
@@ -62,6 +62,14 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
 
             [HKEY_CURRENT_USER\Software\Wine\Mac Driver]
             "RetinaMode"="y"
+
+            ; Retina mode renders at native pixels, so Wine's own dialogs (the in-game Xbox sign-in prompt, message boxes) need 2x DPI
+            ; or they come out half size. The game itself is DPI aware.
+            [HKEY_CURRENT_USER\Control Panel\Desktop]
+            "LogPixels"=dword:000000c0
+
+            [HKEY_LOCAL_MACHINE\System\CurrentControlSet\Hardware Profiles\Current\Software\Fonts]
+            "LogPixels"=dword:000000c0
 
             """);
         foreach (var c in McWinRtClasses)

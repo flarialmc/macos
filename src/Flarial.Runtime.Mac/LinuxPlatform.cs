@@ -35,6 +35,8 @@ public static class LinuxPlatform
     {
         Paths.Ensure();
         await Backend.Prefix.EnsureSetupAsync(new Progress<double>(p => Console.WriteLine($"progress {p:0.00}")), default);
+        // FLARIAL_GAME_DIR=<unpacked game>: also run the per-game preparation (GameInput redist from its Installers folder)
+        if (Environment.GetEnvironmentVariable("FLARIAL_GAME_DIR") is { Length: > 0 } game) await Backend.Prefix.PrepareGameAsync(game, null, default);
         var sys32 = System.IO.Path.Combine(Paths.Prefix, "drive_c", "windows", "system32");
         var failures = 0;
         foreach (var n in new[] { "xgameruntime.dll", "mcwinrt.dll", "flarial_vault.dll", "d3d11.dll", "dxgi.dll", "d3d10core.dll", "winemetal.dll" })

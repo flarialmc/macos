@@ -14,7 +14,7 @@ namespace Flarial.Runtime.Linux.Launch;
 
 /// <summary>
 /// macOS launch: `xodus-cli run` (licence check + decrypt) -> Resources/launch-wrapper.sh (RAM-disk mirror of the game folder) -> Whisky
-/// Wine 7.7 with DXMT. Same flow as the Linux LauncherCore minus umu/Steam runtime; the Xbox session goes to the xgameruntime shim
+/// Wine 11.0 with DXMT. Same flow as the Linux LauncherCore minus umu/Steam runtime; the Xbox session goes to the xgameruntime shim
 /// through %APPDATA%\xgr\auth.json instead of WINEGDK_PREAUTH_DEVICE.
 /// </summary>
 sealed class LauncherCore(IEngine engine, IXodus xodus, IPrefix prefix, IXboxAuth xbox) : ILauncherCore
