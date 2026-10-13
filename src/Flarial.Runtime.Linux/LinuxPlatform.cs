@@ -9,7 +9,7 @@ public static class LinuxPlatform
     public static string LauncherDataDirectory => System.IO.Path.Combine(Paths.DataHome, "Flarial", "Launcher");
 
     /// <summary>Flarial client data folder as the game sees it (%LOCALAPPDATA%\\Flarial\\Client inside the Wine prefix); created on demand.</summary>
-    public static string ClientDirectory => System.IO.Directory.CreateDirectory(System.IO.Path.Combine(Paths.Prefix, "drive_c", "users", "steamuser", "AppData", "Local", "Flarial", "Client")).FullName;
+    public static string ClientDirectory => System.IO.Directory.CreateDirectory(System.IO.Path.Combine(Paths.Prefix, "drive_c", "users", Paths.WineUser, "AppData", "Local", "Flarial", "Client")).FullName;
 
     /// <summary>UI hook for backend messages (set by the launcher; shown as a notification).</summary>
     public static Action<string>? Notify { get; set; }

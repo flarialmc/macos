@@ -49,7 +49,11 @@ static class Program
         var builder = AppBuilder.Configure<App>();
 
         builder.UseSkia();
+#if MACOS
+        builder.UseAvaloniaNative();
+#else
         builder.UseX11();
+#endif
         builder.UseHarfBuzz();
         builder.UseReactiveUI(static _ => _.WithExceptionHandler(new ExceptionHandler()));
 
@@ -59,4 +63,4 @@ static class Program
 
         builder.StartWithClassicDesktopLifetime(args);
     }
-}
+}

@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    macOS backend. It compiles the OS-neutral sources of Flarial.Runtime.Linux unchanged (same namespaces and public type names, so the
+    launcher UI needs no changes) and replaces only the Linux-specific files with the ones in this folder. Keep the Exclude list in sync
+    when upstream adds Linux-only files.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <RootNamespace>Flarial.Runtime.Linux</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Shared>..\Flarial.Runtime.Linux\</Shared>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
+    <Compile Include="$(Shared)**\*.cs" LinkBase="Shared"
+             Exclude="$(Shared)bin\**;$(Shared)obj\**;
+                      $(Shared)AssemblyInfo.cs;
+                      $(Shared)Paths.cs;
+                      $(Shared)LinuxPlatform.cs;
+                      $(Shared)LinuxCredentialStore.cs;
+                      $(Shared)SystemDependencies.cs;
+                      $(Shared)DependenciesSelfTest.cs;
+                      $(Shared)Engine\**;
+                      $(Shared)Prefix\PrefixManager.cs;
+                      $(Shared)Launch\LauncherCore.cs;
+                      $(Shared)Launch\ProcScan.cs;
+                      $(Shared)Launch\GameWatch.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Flarial.Runtime\Flarial.Runtime.csproj" />
+    <!-- Windows-side helpers, identical to Linux: they run inside Wine. -->
+    <EmbeddedResource Include="$(Shared)Native\injector.exe" LogicalName="injector.exe" />
+    <EmbeddedResource Include="$(Shared)Native\flarial_vault.dll" LogicalName="flarial_vault.dll" />
+    <EmbeddedResource Include="$(Shared)Native\flarial_bcrypt_shim.dll" LogicalName="flarial_bcrypt_shim.dll" />
+    <!-- macOS engine pieces, see MACOS.md. -->
+    <EmbeddedResource Include="Resources\launch-wrapper.sh" LogicalName="launch-wrapper.sh" />
+    <EmbeddedResource Include="Native\d3d12.dll" LogicalName="d3d12.dll" />
+    <EmbeddedResource Include="Native\xgameruntime.dll" LogicalName="xgameruntime.dll" />
+    <EmbeddedResource Include="Native\mcwinrt.dll" LogicalName="mcwinrt.dll" />
+  </ItemGroup>
+
+</Project>

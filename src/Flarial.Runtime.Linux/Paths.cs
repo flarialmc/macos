@@ -61,6 +61,9 @@ static class Paths
     /// <summary>Wine compatibility shim (bcrypt RSA-OAEP), injected into Minecraft before the client. See docs/wine-bcrypt-oaep.md.</summary>
     public static string BcryptShim => Dir("cache", "flarial_bcrypt_shim.dll");
 
+    /// <summary>Wine user profile folder under drive_c/users (Proton always uses steamuser).</summary>
+    public static string WineUser => "steamuser";
+
     public static string GameDir(string edition, string version) => Dir("games", edition, version);
 
     public static void Ensure()

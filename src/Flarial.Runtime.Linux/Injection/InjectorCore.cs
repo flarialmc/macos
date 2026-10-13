@@ -129,6 +129,9 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
         if (code == -1) LaunchLog.Phase($"injector.exe killed after {timeout.TotalSeconds:0} s (hung in the game process)");
         LaunchLog.Phase($"injector.exe finished (exit {code})");
         if (code != 0) return new(false, code, Describe(code));
+#if MACOS
+        s_injected = (gamePid, Path.GetFileName(dll));
+#endif
         // non-blocking: report success now, log a crash right after injection from the background
         _ = Task.Run(async () => { if (!await GameSurvives(pid, TimeSpan.FromMilliseconds(1500), CancellationToken.None)) LaunchLog.Phase("game exited or crashed within 1.5 s after injection"); });
         return new(true, 0, "Injected.");
@@ -147,6 +150,14 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
         _ => $"Injector failed (exit {code})."
     };
 
+#if MACOS
+    // the client DLL is usually copied (not file-mapped) by Wine, so the region scan can miss it: remember what injector.exe loaded where
+    static (uint Pid, string Name)? s_injected;
+
+    public bool IsModuleLoaded(uint gamePid, string fileNameContains) =>
+        s_injected is { } i && i.Pid == gamePid && ProcScan.Alive((int)gamePid) && i.Name.Contains(fileNameContains, StringComparison.OrdinalIgnoreCase)
+        || ProcScan.MapsFile((int)gamePid, fileNameContains);
+#else
     public bool IsModuleLoaded(uint gamePid, string fileNameContains)
     {
         try
@@ -156,4 +167,5 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
         }
         catch { return false; }
     }
+#endif
 }

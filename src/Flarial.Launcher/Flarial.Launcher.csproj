@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <PlatformTarget>x64</PlatformTarget>
+        <PlatformTarget Condition="'$(FlarialMac)' != 'true'">x64</PlatformTarget>
         <TargetFramework>net10.0</TargetFramework>
 
         <Nullable>enable</Nullable>
@@ -13,7 +13,7 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <DeterministicSourcePaths>true</DeterministicSourcePaths>
 
-        <ApplicationIcon>Resources/app.ico</ApplicationIcon>
+        <ApplicationIcon Condition="'$(FlarialMac)' != 'true'">Resources/app.ico</ApplicationIcon>
 
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -54,16 +54,18 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Flarial.Runtime\Flarial.Runtime.csproj" />
-        <ProjectReference Include="..\Flarial.Runtime.Linux\Flarial.Runtime.Linux.csproj" />
+        <ProjectReference Condition="'$(FlarialMac)' != 'true'" Include="..\Flarial.Runtime.Linux\Flarial.Runtime.Linux.csproj" />
+        <ProjectReference Condition="'$(FlarialMac)' == 'true'" Include="..\Flarial.Runtime.Mac\Flarial.Runtime.Mac.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="SkiaSharp" Version="4.153.1" />
         <PackageReference Include="Avalonia.Skia" Version="12.1.3" />
 
-        <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.153.1" />
-
-        <PackageReference Include="Avalonia.X11" Version="12.1.3" />
+        <PackageReference Condition="'$(FlarialMac)' != 'true'" Include="SkiaSharp.NativeAssets.Linux" Version="4.153.1" />
+        <PackageReference Condition="'$(FlarialMac)' != 'true'" Include="Avalonia.X11" Version="12.1.3" />
+        <PackageReference Condition="'$(FlarialMac)' == 'true'" Include="SkiaSharp.NativeAssets.macOS" Version="4.153.1" />
+        <PackageReference Condition="'$(FlarialMac)' == 'true'" Include="Avalonia.Native" Version="12.1.3" />
         <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.3" />
 
         <PackageReference Include="ReactiveUI.Avalonia" Version="12.1.6" />

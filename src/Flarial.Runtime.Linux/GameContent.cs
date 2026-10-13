@@ -19,8 +19,8 @@ public static class GameContent
     /// active installed game dir, else Paths.Games; created if missing
     public static string InstallationDirectory => Directory.CreateDirectory(LinuxGameService.ActiveDir() ?? Paths.Games).FullName;
 
-    /// <Paths.Prefix>/drive_c/users/steamuser/AppData/Roaming/Minecraft Bedrock ; created if missing
-    public static string DataDirectory => Directory.CreateDirectory(DataDirectoryOverride ?? Path.Combine(Paths.Prefix, "drive_c", "users", "steamuser", "AppData", "Roaming", "Minecraft Bedrock")).FullName;
+    /// <Paths.Prefix>/drive_c/users/<WineUser>/AppData/Roaming/Minecraft Bedrock ; created if missing
+    public static string DataDirectory => Directory.CreateDirectory(DataDirectoryOverride ?? Path.Combine(Paths.Prefix, "drive_c", "users", Paths.WineUser, "AppData", "Roaming", "Minecraft Bedrock")).FullName;
 
     /// imports a .mcpack/.zip/.mcaddon/.mcworld/.mctemplate file; returns a user-facing summary
     public static string Import(string file)

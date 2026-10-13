@@ -16,9 +16,16 @@ namespace Flarial.Runtime.Linux.Xodus;
 /// <summary>Drives the downloaded xodus-cli (GPL-3.0, subprocess only; see NOTICE.txt). Behavior ported from BedrockOnLinux (MIT).</summary>
 internal sealed partial class XodusClient : IXodus
 {
+#if MACOS
+    // flarialmc/xodus branch flarial-macos (the BedrockOnLinux patches on the same pinned commit), built for arm64 by tools/build-xodus-macos.sh
+    const string Rev = "64d39eb87a56-p7";
+    const string CliUrl = "https://github.com/flarialmc/macos/releases/download/xodus-" + Rev + "/xodus-cli-" + Rev + "-macos-arm64.tar.gz";
+    const string CliSha = "XODUS_MACOS_SHA256";
+#else
     const string Rev = "64d39eb87a56-p5";
     const string CliUrl = "https://github.com/Wyze3306/BedrockOnLinux/releases/download/xodus-" + Rev + "/xodus-cli-" + Rev + ".tar.gz";
     const string CliSha = "bb507341bcd2eb56406e9aafab2a58978510b396df5d51a577bb0ba08560f8d8";
+#endif
     const string GdkLinksUrl = "https://raw.githubusercontent.com/MinecraftBedrockArchiver/GdkLinks/master/urls.json";
     const string PackageCache = ".xodus-streaming.msixvc";
     const string Exe = "Minecraft.Windows.exe";
@@ -138,8 +145,12 @@ internal sealed partial class XodusClient : IXodus
         if (_login is { HasExited: false }) throw new InvalidOperationException("A Microsoft sign-in window is already open.");
         ResetWebviewState(); // a half-finished earlier sign-in is otherwise resumed into a blank page
         // setsid: own session so the webview's children die with the kill below
+#if MACOS
+        var info = Proc.Info(Paths.XodusBin, ["login"], CliEnv()); // WKWebView: no setsid / GTK workarounds needed; Kill(p) takes the whole tree
+#else
         var info = Proc.Info("setsid", ["-w", Paths.XodusBin, "login"], CliEnv());
         XodusLoginEnvironment.Apply(info.Environment, File.Exists("/proc/driver/nvidia/version"));
+#endif
         using var p = Process.Start(info)!;
         _login = p;
         p.StandardInput.Close();
@@ -320,12 +331,17 @@ internal sealed partial class XodusClient : IXodus
         return 0;
     }
 
-    /// <summary>xodus-cli draws indicatif bars only on a tty, so it runs under util-linux `script` (a pty) sized 24x120.</summary>
+    /// <summary>xodus-cli draws indicatif bars only on a tty, so it runs under `script` (a pty) sized 24x120.</summary>
     async Task<(int Code, List<string> Tail)> RunStreamingAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct)
     {
         var env = CliEnv(pty: true);
         env["FLARIAL_X_BIN"] = Paths.XodusBin; env["FLARIAL_X_SRC"] = url; env["FLARIAL_X_DST"] = dest;
+#if MACOS
+        // BSD script: `script -q <file> <command...>`
+        var info = Proc.Info("/usr/bin/script", ["-q", "/dev/null", "/bin/sh", "-c", "stty cols 120 rows 24 2>/dev/null; exec \"$FLARIAL_X_BIN\" streaming \"$FLARIAL_X_SRC\" \"$FLARIAL_X_DST\""], env);
+#else
         var info = Proc.Info("script", ["-qec", "stty cols 120 rows 24 2>/dev/null; exec \"$FLARIAL_X_BIN\" streaming \"$FLARIAL_X_SRC\" \"$FLARIAL_X_DST\"", "/dev/null"], env);
+#endif
         info.RedirectStandardError = false;
         using var p = Process.Start(info)!;
         p.StandardInput.Close();

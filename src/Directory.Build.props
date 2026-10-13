@@ -1,0 +1,8 @@
+<Project>
+  <!-- FlarialMac=true builds the macOS backend (Flarial.Runtime.Mac) instead of Flarial.Runtime.Linux. Defaults to the host OS. -->
+  <PropertyGroup>
+    <FlarialMac Condition="'$(FlarialMac)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">true</FlarialMac>
+    <FlarialMac Condition="'$(FlarialMac)' == ''">false</FlarialMac>
+    <DefineConstants Condition="'$(FlarialMac)' == 'true'">$(DefineConstants);MACOS</DefineConstants>
+  </PropertyGroup>
+</Project>

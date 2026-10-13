@@ -10,6 +10,12 @@ namespace Flarial.Launcher.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
+#if MACOS
+    const string SystemName = "macOS";
+#else
+    const string SystemName = "Linux";
+#endif
+
     Task<bool>? _dependencyCheck;
 
     internal Task<bool> EnsureDependenciesAsync() => _dependencyCheck is { IsCompleted: false }
@@ -34,7 +40,7 @@ public sealed partial class MainWindowViewModel
                     : "\n\nInstall these tools in a terminal, then choose Check again. You can keep using Settings if you skip for now.";
             var buttons = canInstall ? new[] { "Install packages", "Copy command", "Later" }
                 : plan is { } && !SystemDependencies.ImmutableSystem ? ["Check again", "Copy command", "Later"] : ["Check again", "Later"];
-            var choice = await ShowMessageBoxAsync("Finish Linux setup", message, buttons);
+            var choice = await ShowMessageBoxAsync($"Finish {SystemName} setup", message, buttons);
             if (choice == "Copy command")
             {
                 if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { Clipboard: { } clipboard } })
@@ -57,7 +63,7 @@ public sealed partial class MainWindowViewModel
             }
             if (SystemDependencies.Missing().Count == 0)
             {
-                NotificationArea.Add("Linux setup complete. You're ready to download and launch Minecraft.");
+                NotificationArea.Add($"{SystemName} setup complete. You're ready to download and launch Minecraft.");
                 return true;
             }
             var reason = code switch
@@ -79,7 +85,7 @@ public sealed partial class MainWindowViewModel
         try
         {
             if (window is { }) window.Closing += KeepOpen;
-            CurrentDialog = new("Installing Linux packages", "Approve the system password prompt to continue.\n\nYour package manager is installing the missing tools. This can take a few minutes. Keep the launcher open until it finishes.\n\nDetails: " + SystemDependencies.LogPath, []);
+            CurrentDialog = new($"Installing {SystemName} components", "Approve the system password prompt to continue.\n\nYour package manager is installing the missing tools. This can take a few minutes. Keep the launcher open until it finishes.\n\nDetails: " + SystemDependencies.LogPath, []);
             return await Task.Run(SystemDependencies.InstallAsync);
         }
         finally

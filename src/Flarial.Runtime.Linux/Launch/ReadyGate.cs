@@ -33,7 +33,7 @@ static class ReadyGate
         s_seen = s_deleted = false;
         try
         {
-            var dir = Directory.CreateDirectory(Path.Combine(Paths.Prefix, "drive_c", "users", "steamuser", "AppData", "Roaming", "Minecraft Bedrock", "Users")).FullName;
+            var dir = Directory.CreateDirectory(Path.Combine(Paths.Prefix, "drive_c", "users", Paths.WineUser, "AppData", "Roaming", "Minecraft Bedrock", "Users")).FullName;
             var w = new FileSystemWatcher(dir, "*menu_load_lock") { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.FileName };
             w.Created += (_, _) => s_seen = true;
             w.Deleted += (_, _) => { s_seen = true; s_deleted = true; };

@@ -8,3 +8,4 @@ using System.Runtime.CompilerServices;
 
 // the Linux backend reaches the account token and the loader payload (self-tests); GenerateAssemblyInfo is off, so an InternalsVisibleTo item would be ignored
 [assembly: InternalsVisibleTo("Flarial.Runtime.Linux")]
+[assembly: InternalsVisibleTo("Flarial.Runtime.Mac")]

@@ -8,7 +8,11 @@ using Flarial.Runtime.Core;
 using Flarial.Runtime.Unmanaged;
 using ReactiveUI.Primitives.Extensions;
 
+#if MACOS
+[assembly: System.Runtime.Versioning.SupportedOSPlatform("macos")]
+#else
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("linux")]
+#endif
 [assembly: AssemblyCompany("Flarial")]
 [assembly: AssemblyProduct("Launcher")]
 [assembly: AssemblyTitle("Flarial Launcher")]
@@ -66,4 +70,4 @@ Exception: {1}
 
         Environment.Exit(1);
     }
-}
+}
