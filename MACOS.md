@@ -41,21 +41,22 @@ x86_64 code.
 1. **WineGDK on macOS.** [Weather-OS/WineGDK](https://github.com/Weather-OS/WineGDK) is a Wine fork with no macOS-specific code
    removed, so it should build with the normal macOS Wine toolchain (Gcenx's build scripts, mingw for the PE side, wow64 mode so no
    32-bit host libs are needed). Nobody has published such a build. This is the first thing to try.
-2. **Graphics.** vkd3d-proton (what Linux uses) does not run usefully on MoltenVK. Options, best first:
-   - **D3D11 path + DXMT** (open source D3D11 to Metal, ships in CrossOver 25+). Reports say Bedrock 26.x runs on WineGDK + DXVK,
-     which means the game accepts a D3D11 device. If that holds, DXMT is the cleanest route and is redistributable.
-   - **D3D11 path + DXVK on MoltenVK.** Works for many games, slower than DXMT.
-   - **D3DMetal (Apple Game Porting Toolkit).** Best D3D12 support, but closed source with a restrictive license: the launcher
-     cannot ship it, only use a copy the user installed themselves from Apple.
+2. **Graphics.** Minecraft GDK renders **only through D3D12** (BedrockOnLinux CHANGELOG, issue #63). That rules out DXMT and
+   DXVK, which are D3D11-only. Options, best first:
+   - **D3DMetal (Apple Game Porting Toolkit).** D3D12 to Metal, best performance. Closed source: the launcher cannot ship it, but
+     it can use a copy the user downloads from Apple (as Whisky/Sikarugir do).
+   - **vkd3d (upstream Wine's D3D12) on MoltenVK.** Open source and shippable. Slower and likely to have rendering bugs;
+     vkd3d-proton (the Linux choice) needs Vulkan features MoltenVK lacks.
+   - **A DXMT-style D3D12 to Metal layer.** Possible in principle, but DXMT took years for D3D11 alone; not a realistic first step.
 3. **CPU.** Rosetta 2 handles x86_64 including AVX2 on current macOS, which covers Minecraft and the client DLL.
 
-Fast way to test before building anything: a CrossOver trial on this Mac (CrossOver 26 has D3DMetal 3 and DXMT). It will not have
+Fast way to test before building anything: a CrossOver trial on this Mac (CrossOver 26 has D3DMetal 3). It will not have
 the WineGDK pieces, so the game may not get past start-up, but it shows whether the graphics side renders.
 
 ## Milestones
 
 1. **Engine spike (go/no-go).** Build WineGDK for macOS, decrypt a game with xodus on Linux or a macOS xodus build, run
-   `Minecraft.Windows.exe` with DXMT. Done when the main menu renders.
+   `Minecraft.Windows.exe` with D3DMetal (then vkd3d + MoltenVK). Done when the main menu renders.
 2. **Inject.** Run `injector.exe` against it and confirm the Flarial client loads (bcrypt shim included).
 3. **Backend.** Add `src/Flarial.Runtime.Mac` implementing `IGameService`, `IInjector`, `IMicrosoftAccount`, `ICredentialStore`,
    reusing the Linux modules that are OS-neutral (move them to a shared project instead of copying).
