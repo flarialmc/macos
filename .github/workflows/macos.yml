@@ -74,6 +74,6 @@ jobs:
           test -n "$ID" && test "$ID" != null
           echo "submission $ID"
           # newer pending releases replace older ones
-          gh release list --json tagName,isDraft -q '.[]|select(.isDraft and (.tagName|startswith("mac-pending-")))|.tagName' | while read -r t; do gh release delete "$t" -y --cleanup-tag; done
+          gh release list --json tagName,isDraft -q '.[]|select(.isDraft and (.tagName|startswith("mac-pending-")))|.tagName' | while read -r t; do gh release delete "$t" -y; done
           gh release create "mac-pending-$VERSION" Flarial.app.zip --draft --title "macOS $VERSION (waiting for notarization)" --notes "$ID"
           gh workflow run macos-publish.yml --ref main
