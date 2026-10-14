@@ -51,6 +51,7 @@ static class Program
         builder.UseSkia();
 #if MACOS
         builder.UseAvaloniaNative();
+        builder.AfterSetup(static _ => MacDockIcon.Apply());
 #else
         builder.UseX11();
 #endif

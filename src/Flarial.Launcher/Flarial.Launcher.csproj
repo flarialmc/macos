@@ -49,6 +49,7 @@
     <ItemGroup>
         <Compile Include="..\AssemblyVersion.cs" />
         <AvaloniaResource Include="Resources\**" />
+        <EmbeddedResource Condition="'$(FlarialMac)' == 'true'" Include="..\..\assets\macos\AppIcon.png" LogicalName="AppIcon.png" />
         <None Include="..\..\version.txt" Link="version.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
