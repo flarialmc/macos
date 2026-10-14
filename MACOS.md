@@ -20,8 +20,17 @@ How the engine works:
   BedrockOnLinux patches). Whisky's Wine has no `WINE_DLL_FILE_MAP`, so the launch wrapper mirrors the game folder into a private RAM disk
   with the decrypted files and runs Wine from there.
 
-Remaining before a release: publish the engine and xodus release assets (their SHA-256 pins are placeholders), package a signed `.app`,
-an end-to-end launch with injection, and controllers (the GameInput service crashes under Wine; keyboard and mouse work).
+Releases: a `release:` commit on `main` runs `.github/workflows/macos.yml` (macOS runner): bumps `version.txt`, builds `Flarial.app`
+(`tools/make-app-macos.sh`), `Flarial.dmg` (`tools/make-dmg-macos.sh`) and the update archive `Flarial.Launcher.macOS.tar.gz`, signs it
+with the same key as Linux (secret `LINUX_UPDATE_PRIVATE_KEY`), and pushes all of it to `flarialmc/newcdn` `launcher/macos/` (secrets
+`APP_CLIENT_ID`, `APP_PRIVATE_KEY`), which newcdn's `r2-upload.yml` publishes to cdn.flarial.xyz. Updates: the app reads
+`Flarial.Launcher.macOS.json`, verifies size, SHA-256, signature and bundled version, moves the old bundle to
+`~/Library/Application Support/Flarial/macOS/launcher/previous` and puts the new one in its place; a version that never reaches "Ready!"
+is rolled back on the next start. Only works from a writable `Flarial.app` (dragged to Applications), not from the DMG itself.
+
+The app is signed ad hoc, not notarised: on first open macOS asks to allow it (System Settings > Privacy & Security > Open Anyway).
+A Developer ID certificate (Apple Developer Program) would remove that. Controllers do not work yet (the GameInput service crashes under
+Wine); keyboard and mouse do.
 
 ## What carries over unchanged
 
@@ -53,7 +62,7 @@ selects the Mac backend when building on macOS (`FlarialMac=true`, define `MACOS
 | `xdg-open`, zenity, `setsid`, util-linux `script` | `open`, osascript alert, plain spawn, BSD `script` | Done |
 | `~/.local/share/Flarial/Linux` | `~/Library/Application Support/Flarial/macOS` | Done |
 | distro packages check | Rosetta 2 check and install via the admin prompt (`SystemDependencies.cs`) | Self-test passes |
-| `install.sh` / AUR / self-updater | Signed `.app` in a DMG | To do |
+| `install.sh` / AUR / self-updater | `Flarial.app` in `Flarial.dmg` from cdn.flarial.xyz/launcher/macos; the app swaps itself in place (`Update/LauncherUpdater.cs`) | Self-test passes |
 
 Self-tests (use a scratch HOME; `FLARIAL_MAC_SEED_ENGINE=<Libraries dir>` links an existing engine instead of downloading it):
 `--selftest-dependencies`, `--selftest-procscan`, `--selftest-engine`, `--selftest-prefix` (`FLARIAL_GAME_DIR=<unpacked game>` also
