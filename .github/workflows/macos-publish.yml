@@ -9,15 +9,15 @@ on:
 
 permissions:
   contents: write
-
-concurrency:
-  group: macos-publish
-  cancel-in-progress: false
+  actions: write
 
 jobs:
   publish:
     if: github.repository == 'flarialmc/macos'
     runs-on: macos-15
+    concurrency: macos-publish   # one check at a time; the requeue sleep below does not hold it
+    outputs:
+      state: ${{ steps.pending.outputs.state }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
@@ -134,3 +134,17 @@ jobs:
           ok=0; for i in 1 2 3; do if git push; then ok=1; break; fi; git pull --rebase; done
           test $ok = 1
           cd .. && gh release delete "$TAG" -y --cleanup-tag
+
+  # GitHub's cron is best effort (a new schedule can take hours to start firing), so a waiting check re-queues itself: one chain of
+  # dispatched runs, 20 minutes apart, until the submission is accepted or rejected. Scheduled runs never start a chain.
+  requeue:
+    needs: publish
+    if: needs.publish.outputs.state == 'waiting' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Next check in 20 minutes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 1200
+          gh workflow run macos-publish.yml --repo "${{ github.repository }}" --ref main
