@@ -1,4 +1,7 @@
 name: macOS
+# Stage 1 of a macOS release: build, sign and submit to Apple's notary service without waiting (a first-time or held submission can take
+# days, longer than any runner job may run). The signed app and the submission id are parked on a draft release "mac-pending-<version>";
+# macos-publish.yml polls Apple and publishes once the submission is accepted.
 on:
   push:
     branches: ["main"]
@@ -14,9 +17,7 @@ jobs:
     runs-on: macos-15
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
       MACOS_SIGN_IDENTITY: "Developer ID Application: Ashank Sundaram (8DM67J2F6Q)"
-      CDN_URL: https://cdn.flarial.xyz/launcher/macos
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -53,97 +54,26 @@ jobs:
         env:
           CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
           CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-        run: |
-          KC="$RUNNER_TEMP/signing.keychain-db"; KCPW="$(uuidgen)"
-          security create-keychain -p "$KCPW" "$KC"
-          security set-keychain-settings -lut 21600 "$KC"
-          security unlock-keychain -p "$KCPW" "$KC"
-          printf '%s' "$CERT_P12" | base64 -D > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign
-          rm -f "$RUNNER_TEMP/cert.p12"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KCPW" "$KC" >/dev/null
-          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
-          security find-identity -v -p codesigning "$KC"
+        run: tools/ci-import-cert-macos.sh
 
       - name: Build
         run: |
           tools/make-app-macos.sh publish
           test "$(cat publish/Flarial.app/Contents/Resources/version.txt)" = "$VERSION"
 
-      - name: Notarize app
+      - name: Submit
         env:
           NOTARY_KEY: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
           printf '%s\n' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
-          echo "NOTARY_ARGS=--key $RUNNER_TEMP/notary.p8 --key-id $NOTARY_KEY_ID --issuer $NOTARY_ISSUER" >> "$GITHUB_ENV"
-          ditto -c -k --keepParent publish/Flarial.app "$RUNNER_TEMP/Flarial.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/Flarial.zip" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 120m
-          xcrun stapler staple publish/Flarial.app
-          spctl -a -t exec -vv publish/Flarial.app
-
-      - name: Package
-        run: |
-          tar -czf Flarial.Launcher.macOS.tar.gz -C publish Flarial.app
-          tools/make-dmg-macos.sh publish/Flarial.app Flarial.dmg
-          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" Flarial.dmg
-          xcrun notarytool submit Flarial.dmg $NOTARY_ARGS --wait --timeout 120m
-          xcrun stapler staple Flarial.dmg
-          spctl -a -t open --context context:primary-signature -vv Flarial.dmg
+          ditto -c -k --keepParent publish/Flarial.app Flarial.app.zip
+          ID="$(xcrun notarytool submit Flarial.app.zip --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --output-format json | jq -r .id)"
           rm -f "$RUNNER_TEMP/notary.p8"
-          ls -la Flarial.Launcher.macOS.tar.gz Flarial.dmg
-
-      - name: Sign
-        run: |
-          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
-          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
-          rm -f "$RUNNER_TEMP/key.pem"
-          cat > pub.pem <<'KEY'
-          -----BEGIN PUBLIC KEY-----
-          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyE2XQRgyEM/Gy+/MITOSFhmEFoDY
-          /8mmGUIAdy66nSToJU7whtSWcAjZDojWUhB29xSvmAM+bX1h5eknNadUUQ==
-          -----END PUBLIC KEY-----
-          KEY
-          sed -i '' 's/^ *//' pub.pem
-          openssl dgst -sha256 -verify pub.pem -signature Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
-
-      - name: Manifest
-        run: |
-          jq -n \
-            --arg version "$VERSION" \
-            --arg url "$CDN_URL/Flarial.Launcher.macOS.tar.gz" \
-            --arg sha256 "$(shasum -a 256 Flarial.Launcher.macOS.tar.gz | cut -d' ' -f1)" \
-            --argjson size "$(stat -f %z Flarial.Launcher.macOS.tar.gz)" \
-            --arg signature "$(base64 -i Flarial.Launcher.macOS.tar.gz.sig | tr -d '\n')" \
-            '{version:$version,url:$url,sha256:$sha256,size:$size,signature:$signature}' > Flarial.Launcher.macOS.json
-          cat Flarial.Launcher.macOS.json
-
-      - name: Token
-        uses: actions/create-github-app-token@v3
-        id: token
-        with:
-          client-id: ${{ secrets.APP_CLIENT_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: flarialmc
-          repositories: newcdn
-
-      - name: CDN
-        uses: actions/checkout@v7
-        with:
-          repository: 'flarialmc/newcdn'
-          ref: 'main'
-          path: 'cdn'
-          token: ${{ steps.token.outputs.token }}
-
-      - name: Deploy
-        run: |
-          mkdir -p cdn/launcher/macos
-          cp Flarial.dmg Flarial.Launcher.macOS.tar.gz Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.json cdn/launcher/macos/
-          cd cdn
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@example.com"
-          git add launcher/macos
-          git commit -m "Update macOS Launcher -> '$VERSION'"
-          for i in 1 2 3; do git push && exit 0; git pull --rebase; done
-          exit 1
+          test -n "$ID" && test "$ID" != null
+          echo "submission $ID"
+          # newer pending releases replace older ones
+          gh release list --json tagName,isDraft -q '.[]|select(.isDraft and (.tagName|startswith("mac-pending-")))|.tagName' | while read -r t; do gh release delete "$t" -y --cleanup-tag; done
+          gh release create "mac-pending-$VERSION" Flarial.app.zip --draft --title "macOS $VERSION (waiting for notarization)" --notes "$ID"
+          gh workflow run macos-publish.yml --ref main

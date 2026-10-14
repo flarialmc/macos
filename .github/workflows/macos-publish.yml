@@ -1,0 +1,136 @@
+name: macOS publish
+# Stage 2 of a macOS release (see macos.yml): every 20 minutes, check the notarization of the pending signed app. Still in progress: do
+# nothing (it waits as long as Apple takes). Rejected: print Apple's log, drop the pending release, fail. Accepted: staple, build the DMG
+# (notarized + stapled), sign the update archive and publish everything to flarialmc/newcdn launcher/macos/.
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'flarialmc/macos'
+    runs-on: macos-15
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
+      MACOS_SIGN_IDENTITY: "Developer ID Application: Ashank Sundaram (8DM67J2F6Q)"
+      CDN_URL: https://cdn.flarial.xyz/launcher/macos
+      NOTARY_KEY: ${{ secrets.NOTARY_KEY_P8 }}
+      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Pending
+        id: pending
+        run: |
+          TAG="$(gh release list --json tagName,isDraft,createdAt -q '[.[]|select(.isDraft and (.tagName|startswith("mac-pending-")))]|sort_by(.createdAt)|last|.tagName // empty')"
+          if [ -z "$TAG" ]; then echo "nothing pending"; echo "state=none" >> "$GITHUB_OUTPUT"; exit 0; fi
+          ID="$(gh release view "$TAG" --json body -q .body | tr -d '[:space:]')"
+          printf '%s\n' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          STATUS="$(xcrun notarytool info "$ID" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --output-format json | jq -r .status)"
+          echo "$TAG submission $ID: $STATUS"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"; echo "version=${TAG#mac-pending-}" >> "$GITHUB_OUTPUT"
+          case "$STATUS" in
+            Accepted) echo "state=accepted" >> "$GITHUB_OUTPUT";;
+            "In Progress") echo "state=waiting" >> "$GITHUB_OUTPUT";;
+            *)
+              xcrun notarytool log "$ID" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" || true
+              gh release delete "$TAG" -y --cleanup-tag
+              echo "::error::notarization $STATUS for $TAG"; exit 1;;
+          esac
+
+      - name: Certificate
+        if: steps.pending.outputs.state == 'accepted'
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: tools/ci-import-cert-macos.sh
+
+      - name: Package
+        if: steps.pending.outputs.state == 'accepted'
+        env:
+          TAG: ${{ steps.pending.outputs.tag }}
+          VERSION: ${{ steps.pending.outputs.version }}
+        run: |
+          gh release download "$TAG" -p Flarial.app.zip
+          mkdir publish && ditto -x -k Flarial.app.zip publish
+          test "$(cat publish/Flarial.app/Contents/Resources/version.txt)" = "$VERSION"
+          xcrun stapler staple publish/Flarial.app
+          spctl -a -t exec -vv publish/Flarial.app
+          tar -czf Flarial.Launcher.macOS.tar.gz -C publish Flarial.app
+          tools/make-dmg-macos.sh publish/Flarial.app Flarial.dmg
+          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" Flarial.dmg
+          # the app inside is already notarized, so this one is quick; still, wait as long as the runner allows
+          xcrun notarytool submit Flarial.dmg --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 300m
+          xcrun stapler staple Flarial.dmg
+          spctl -a -t open --context context:primary-signature -vv Flarial.dmg
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+      - name: Sign
+        if: steps.pending.outputs.state == 'accepted'
+        run: |
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
+          rm -f "$RUNNER_TEMP/key.pem"
+          printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyE2XQRgyEM/Gy+/MITOSFhmEFoDY' '/8mmGUIAdy66nSToJU7whtSWcAjZDojWUhB29xSvmAM+bX1h5eknNadUUQ==' '-----END PUBLIC KEY-----' > pub.pem
+          openssl dgst -sha256 -verify pub.pem -signature Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
+
+      - name: Manifest
+        if: steps.pending.outputs.state == 'accepted'
+        env:
+          VERSION: ${{ steps.pending.outputs.version }}
+        run: |
+          jq -n \
+            --arg version "$VERSION" \
+            --arg url "$CDN_URL/Flarial.Launcher.macOS.tar.gz" \
+            --arg sha256 "$(shasum -a 256 Flarial.Launcher.macOS.tar.gz | cut -d' ' -f1)" \
+            --argjson size "$(stat -f %z Flarial.Launcher.macOS.tar.gz)" \
+            --arg signature "$(base64 -i Flarial.Launcher.macOS.tar.gz.sig | tr -d '\n')" \
+            '{version:$version,url:$url,sha256:$sha256,size:$size,signature:$signature}' > Flarial.Launcher.macOS.json
+          cat Flarial.Launcher.macOS.json
+
+      - name: Token
+        if: steps.pending.outputs.state == 'accepted'
+        uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: flarialmc
+          repositories: newcdn
+
+      - name: CDN
+        if: steps.pending.outputs.state == 'accepted'
+        uses: actions/checkout@v7
+        with:
+          repository: 'flarialmc/newcdn'
+          ref: 'main'
+          path: 'cdn'
+          token: ${{ steps.token.outputs.token }}
+
+      - name: Deploy
+        if: steps.pending.outputs.state == 'accepted'
+        env:
+          TAG: ${{ steps.pending.outputs.tag }}
+          VERSION: ${{ steps.pending.outputs.version }}
+        run: |
+          mkdir -p cdn/launcher/macos
+          cp Flarial.dmg Flarial.Launcher.macOS.tar.gz Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.json cdn/launcher/macos/
+          cd cdn
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@example.com"
+          git add launcher/macos
+          git commit -m "Update macOS Launcher -> '$VERSION'"
+          ok=0; for i in 1 2 3; do if git push; then ok=1; break; fi; git pull --rebase; done
+          test $ok = 1
+          cd .. && gh release delete "$TAG" -y --cleanup-tag
