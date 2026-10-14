@@ -65,7 +65,13 @@ for i in "${!fds[@]}"; do
   rel="${rels[$i]}"; dir="${rel%/*}"
   [ "$dir" != "$rel" ] && materialize "$dir"
   rm -f "$stage/$rel"
-  ( umask 077; cat < "/dev/fd/${fds[$i]}" > "$stage/$rel" ) || { echo "flarial: cannot stage $rel" >&2; exit 1; }
+  # /dev/fd/N on macOS duplicates xodus's descriptor (no reopen as with Linux /proc/self/fd), so its offset sits at the end of what
+  # xodus wrote: copy from offset 0 with pread-style reads (perl ships with macOS)
+  ( umask 077; /usr/bin/perl -e 'open(my $in, "<&=", $ARGV[0]) or die "fd $ARGV[0]: $!"; binmode $in; sysseek($in, 0, 0) or die "seek: $!";
+      open(my $out, ">", $ARGV[1]) or die "$ARGV[1]: $!"; binmode $out; my $buf;
+      while (my $n = sysread($in, $buf, 1 << 20)) { print $out $buf or die "write: $!" } close $out or die "close: $!"' \
+      "${fds[$i]}" "$stage/$rel" ) || { echo "flarial: cannot stage $rel" >&2; exit 1; }
+  [ "$(stat -f %z "$stage/$rel")" = "$(stat -f %z "/dev/fd/${fds[$i]}")" ] || { echo "flarial: staged $rel is incomplete" >&2; exit 1; }
   if [ "$(lower "${rel##*/}")" = "$(lower "$exe")" ]; then
     target="$stage/$rel"
     # raise the PE stack reserve to 16 MiB (settings/pause screen stack overflow under Wine)
