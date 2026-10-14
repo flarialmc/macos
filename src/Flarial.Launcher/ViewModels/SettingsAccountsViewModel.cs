@@ -79,6 +79,7 @@ public partial class SettingsAccountsViewModel : ViewModelBase
 
     async Task OnXboxSignInAsync()
     {
+        const string Title = "🎮 Xbox Live Sign In";
         XboxBusy = true;
         using CancellationTokenSource cts = new();
         try
@@ -87,13 +88,24 @@ public partial class SettingsAccountsViewModel : ViewModelBase
             XboxText = "Waiting for sign-in...";
 
             var poll = Service.PollXboxDeviceCodeAsync(cts.Token);
-            _ = poll.ContinueWith(_ => _main.CurrentDialog?.SelectButtonCommand.Execute("Done"), TaskScheduler.FromCurrentSynchronizationContext());
 
             // Re-show until the user cancels or the poll finishes; "Open Browser" copies the code and opens the page.
             while (!poll.IsCompleted)
             {
                 var message = $"Open {code.VerificationUri} and enter this code:\n\n        {code.UserCode}\n\n• \"Open Browser\" copies the code and opens the page.\n• This dialog closes once you finish signing in.";
-                var key = await _main.ShowMessageBoxAsync("🎮 Xbox Live Sign In", message, ["Open Browser", "Cancel"]);
+                var show = _main.ShowMessageBoxAsync(Title, message, ["Open Browser", "Cancel"]);
+
+                // Close the dialog ourselves once the sign-in completes in the browser.
+                if (await Task.WhenAny(show, poll) == poll)
+                {
+                    while (!show.IsCompleted)
+                    {
+                        if (_main.CurrentDialog is { Title: Title } dialog) dialog.Close("Done");
+                        await Task.WhenAny(show, Task.Delay(100));
+                    }
+                }
+
+                var key = await show;
                 if (key == "Open Browser")
                 {
                     if (Application.Current!.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } w } && w.Clipboard is { } cb)
@@ -103,10 +115,19 @@ public partial class SettingsAccountsViewModel : ViewModelBase
                 else if (key == "Cancel") { cts.Cancel(); break; }
             }
 
-            try { await poll; } catch (OperationCanceledException) { }
+            bool signedIn = false;
+            try { signedIn = await poll; } catch (OperationCanceledException) { }
+
+            if (!cts.IsCancellationRequested)
+            {
+                await RefreshAsync();
+                _main.NotificationArea.Add(signedIn
+                    ? $"Signed in to Xbox Live as {XboxText}."
+                    : "Xbox Live sign-in didn't finish. The code may have expired, try again.");
+            }
         }
         catch (OperationCanceledException) { }
-        catch { }
+        catch (Exception e) { _main.NotificationArea.Add($"Xbox Live sign-in failed: {e.Message}"); }
         await RefreshAsync(); XboxBusy = false;
     }
 }

@@ -25,6 +25,7 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
     [Reactive] bool _loginActive = true;
     [Reactive] bool _loginAvailable = false;
     [Reactive] bool _accountAvailable = false;
+    [Reactive] string _loginText = "Sign in";
 
     public AvaloniaList<SegmentItem> BuildTypes { get; }
     public AccountModel Account => _mainWindowViewModel._account;
@@ -204,30 +205,40 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
     async Task OnLoginAsync()
     {
         LoginAvailable = false;
+        LoginText = "Signing in...";
 
-        if (!await AccountManager.AuthenticateAsync())
+        try
         {
-            await OnLogoutAsync();
-            return;
-        }
+            if (!await AccountManager.AuthenticateAsync())
+            {
+                await OnLogoutAsync();
+                return;
+            }
 
-        await LoginAsync();
+            await LoginAsync();
+        }
+        finally { LoginText = "Sign in"; }
     }
 
     internal async Task LoginAsync()
     {
         LoginAvailable = false;
+        LoginText = "Signing in...";
 
-        if (await AccountManager.LoginAsync() is not { } account)
+        try
         {
-            await OnLogoutAsync();
-            return;
+            if (await AccountManager.LoginAsync() is not { } account)
+            {
+                await OnLogoutAsync();
+                return;
+            }
+
+            HasBetaAccess = account.HasBetaAccess;
+            AccountAvailable = true;
+
+            Account.Login(account);
         }
-
-        HasBetaAccess = account.HasBetaAccess;
-        AccountAvailable = true;
-
-        Account.Login(account);
+        finally { LoginText = "Sign in"; }
     }
 
     async Task OnLogoutAsync()

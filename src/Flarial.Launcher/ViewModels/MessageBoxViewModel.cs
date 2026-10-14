@@ -28,11 +28,15 @@ public sealed class MessageBoxViewModel : ReactiveObject
         Message = message;
         Buttons = buttons;
 
-        SelectButtonCommand = ReactiveCommand.Create<string>(button =>
-        {
-            _pendingResult = button;
-            CloseRequested.OnNext(RxVoid.Default);
-        });
+        SelectButtonCommand = ReactiveCommand.Create<string>(Close);
+    }
+
+    /// <summary>Closes the dialog from code (plays the exit animation) with <paramref name="button"/> as its result.</summary>
+    public void Close(string button)
+    {
+        if (_pendingResult is not null) return;
+        _pendingResult = button;
+        CloseRequested.OnNext(RxVoid.Default);
     }
 
     public void CompleteClose() => _tcs.TrySetResult(_pendingResult ?? string.Empty);

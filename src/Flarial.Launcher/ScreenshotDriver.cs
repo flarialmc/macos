@@ -62,7 +62,7 @@ static class ScreenshotDriver
         a.XboxSignedIn = false; a.XboxText = "Not signed in";
         a.XboxSignIn.Execute().Subscribe(_ => { });
         await Shot("accounts-device-code", 2000);
-        vm.CurrentDialog?.SelectButtonCommand.Execute("Cancel"); await Task.Delay(1000);
+        vm.CurrentDialog?.Close("Cancel"); await Task.Delay(1000);
         g.LoginAvailable = true; g.AccountAvailable = false;
         Go(PageTransitions.SettingsGeneralPage);
         await Task.Delay(1500);

@@ -48,9 +48,8 @@
 
                         <RadioButton Name="AccountsPageButton" Classes="SettingsRadioButton" Grid.Row="2" Content="Accounts" Command="{Binding NavigateCommand}" CommandParameter="{x:Static types:PageTransitions.SettingsAccountsPage}">
                             <RadioButton.Tag>
-                                <Viewbox Width="20" Height="20">
-                                    <Path Fill="White" Data="M12,12A5,5,0,1,0,7,7,5,5,0,0,0,12,12Zm0,2c-4.42,0-8,2.24-8,5v2H20V19C20,16.24,16.42,14,12,14Z"/>
-                                </Viewbox>
+                                <!-- Stretch fits the glyph's own bounds; the 24px icon grid around it left it off-center -->
+                                <Path Width="20" Height="20" Stretch="Uniform" Fill="White" Data="M12,12A5,5,0,1,0,7,7,5,5,0,0,0,12,12Zm0,2c-4.42,0-8,2.24-8,5v2H20V19C20,16.24,16.42,14,12,14Z"/>
                             </RadioButton.Tag>
                         </RadioButton>
 

@@ -60,7 +60,7 @@
                 <spotlightDecorator:SpotlightDecorator SpotlightColor="#9f9f9f" SpotlightRadius="120">
                     <UniformGrid Rows="1">
                         <Button Content="Sign out" FontSize="16" Classes="GenericButton" IsVisible="{Binding General.AccountAvailable}" Command="{Binding General.Logout}"/>
-                        <Button Content="Sign in" FontSize="16" IsEnabled="{Binding General.LoginAvailable}" Classes="GenericButton" Command="{Binding General.Login}" IsVisible="{Binding !General.AccountAvailable}"/>
+                        <Button Content="{Binding General.LoginText}" FontSize="16" IsEnabled="{Binding General.LoginAvailable}" Classes="GenericButton" Command="{Binding General.Login}" IsVisible="{Binding !General.AccountAvailable}"/>
                     </UniformGrid>
                 </spotlightDecorator:SpotlightDecorator>
             </VisualLayerManager>

@@ -35,7 +35,8 @@
             <Color x:Key="BackgroundColor">#201A1B</Color>
             <Color x:Key="BackgroundBorderColor">#32292b</Color>
 
-            <FontFamily x:Key="SpaceGrotesk">avares://Flarial.Launcher/Resources#Space Grotesk</FontFamily>
+            <!-- Emoji fonts after Space Grotesk so dialog titles like ⚠ / 🎮 render in color (Segoe UI Emoji does this on Windows) -->
+            <FontFamily x:Key="SpaceGrotesk">avares://Flarial.Launcher/Resources#Space Grotesk, Apple Color Emoji, Noto Color Emoji</FontFamily>
 
             <ResourceDictionary.MergedDictionaries>
                 <MergeResourceInclude Source="/Animations/MainPageTransitionAnimation.axaml"/>
@@ -47,7 +48,8 @@
     </Application.Resources>
 
     <Application.Styles>
-        <Style Selector="TextBlock">
+        <!-- :is() so SelectableTextBlock (dialog messages) gets Space Grotesk too, not the system font -->
+        <Style Selector=":is(TextBlock)">
             <Setter Property="FontFamily" Value="{StaticResource SpaceGrotesk}"/>
         </Style>
         <StyleInclude Source="Styles/ToggleButtonStyle.axaml"/>
@@ -59,4 +61,4 @@
         <StyleInclude Source="Styles/Expander.axaml"/>
         <StyleInclude Source="Styles/ToolTip.axaml"/>
     </Application.Styles>
-</Application>
+</Application>
