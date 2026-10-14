@@ -14,7 +14,7 @@ sealed class EngineManager : IEngine
 {
     public const string PinnedRevision = "wine11.0-dxmt0.80-r1";
     public const string EngineUrl = "https://github.com/flarialmc/macos/releases/download/engine-" + PinnedRevision + "/flarial-engine-" + PinnedRevision + ".tar.xz";
-    const string EngineSha = "ENGINE_MACOS_SHA256";
+    const string EngineSha = "5bd7fcbd0b1cc02f7712fbf874a5170b4b0828bc1a64a0358bfe3c2a04f84f90";
 
     static bool Seeded => File.Exists(Path.Combine(Paths.Root, ".seeded"));
 

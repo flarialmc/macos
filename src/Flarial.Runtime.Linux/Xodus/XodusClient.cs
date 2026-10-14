@@ -20,7 +20,7 @@ internal sealed partial class XodusClient : IXodus
     // flarialmc/xodus branch flarial-macos (the BedrockOnLinux patches on the same pinned commit), built for arm64 by tools/build-xodus-macos.sh
     const string Rev = "64d39eb87a56-p7";
     const string CliUrl = "https://github.com/flarialmc/macos/releases/download/xodus-" + Rev + "/xodus-cli-" + Rev + "-macos-arm64.tar.gz";
-    const string CliSha = "XODUS_MACOS_SHA256";
+    const string CliSha = "4456dbfc26f2f582daae2be52377d7f5415807f40d45ba03a99b4f90fe923247";
 #else
     const string Rev = "64d39eb87a56-p5";
     const string CliUrl = "https://github.com/Wyze3306/BedrockOnLinux/releases/download/xodus-" + Rev + "/xodus-cli-" + Rev + ".tar.gz";
