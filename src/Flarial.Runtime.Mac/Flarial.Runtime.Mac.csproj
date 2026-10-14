@@ -32,6 +32,7 @@
                       $(Shared)SystemDependencies.cs;
                       $(Shared)DependenciesSelfTest.cs;
                       $(Shared)Engine\**;
+                      $(Shared)Update\**;
                       $(Shared)Prefix\PrefixManager.cs;
                       $(Shared)Launch\LauncherCore.cs;
                       $(Shared)Launch\ProcScan.cs;

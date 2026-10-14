@@ -6,7 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/publish}"
 PUB="$OUT/osx-arm64"
-"$HOME/.dotnet/dotnet" publish "$ROOT/src/Flarial.Launcher" -c Release -r osx-arm64 -o "$PUB" >/dev/null
+DOTNET="${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}"
+"$DOTNET" publish "$ROOT/src/Flarial.Launcher" -c Release -r osx-arm64 -o "$PUB" >/dev/null
 VERSION="$(tr -d '[:space:]' < "$ROOT/version.txt")"
 APP="$OUT/Flarial.app"
 rm -rf "$APP"

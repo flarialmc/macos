@@ -104,7 +104,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     // Silent background update (see docs/ui-deviations.md): deferred while the game runs or a version installs; never exits on its own.
     async Task UpdateLauncherAsync(Flarial.Runtime.Linux.Update.LauncherUpdater updater)
     {
-        static void Log(string m) { try { System.IO.File.AppendAllText(System.IO.Path.Combine(Flarial.Runtime.Linux.LinuxPlatform.LauncherDataDirectory, "..", "Linux", "logs", "updater.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {m}\n"); } catch { } }
+        static void Log(string m) { try { System.IO.File.AppendAllText(System.IO.Path.Combine(Flarial.Runtime.Linux.LinuxPlatform.LogsDirectory, "updater.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {m}\n"); } catch { } }
         bool Busy() => Minecraft.IsRunning || SettingsViewModel.SettingsVersionsViewModel.IsInstalling;
         try
         {
@@ -120,4 +120,4 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception e) { Log("auto-update failed: " + e.Message); }
     }
-}
+}

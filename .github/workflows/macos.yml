@@ -1,0 +1,114 @@
+name: macOS
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    if: github.repository == 'flarialmc/macos'
+    runs-on: macos-15
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
+      CDN_URL: https://cdn.flarial.xyz/launcher/macos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [[ "$MESSAGE" != 'release:'* ]]; then
+            echo "Not a release commit, cancelling."
+            gh run cancel "${{ github.run_id }}"
+            gh run watch "${{ github.run_id }}"
+            exit 0
+          fi
+          echo "A release commit, proceeding."
+
+      - name: .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Bump
+        run: |
+          Version="$(date -u +%Y).$((10#$(date -u +%m))).$((10#$(date -u +%d))).$((10#$(date -u +%H%M)))"
+          echo "$Version" > version.txt
+          echo "VERSION=$Version" >> "$GITHUB_ENV"
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@example.com"
+          git add version.txt
+          git commit -m "Version (macos) -> '$Version'"
+          git push
+
+      - name: Build
+        run: |
+          tools/make-app-macos.sh publish
+          test "$(cat publish/Flarial.app/Contents/MacOS/version.txt)" = "$VERSION"
+
+      - name: Package
+        run: |
+          tar -czf Flarial.Launcher.macOS.tar.gz -C publish Flarial.app
+          tools/make-dmg-macos.sh publish/Flarial.app Flarial.dmg
+          ls -la Flarial.Launcher.macOS.tar.gz Flarial.dmg
+
+      - name: Sign
+        run: |
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
+          rm -f "$RUNNER_TEMP/key.pem"
+          cat > pub.pem <<'KEY'
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyE2XQRgyEM/Gy+/MITOSFhmEFoDY
+          /8mmGUIAdy66nSToJU7whtSWcAjZDojWUhB29xSvmAM+bX1h5eknNadUUQ==
+          -----END PUBLIC KEY-----
+          KEY
+          sed -i '' 's/^ *//' pub.pem
+          openssl dgst -sha256 -verify pub.pem -signature Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.tar.gz
+
+      - name: Manifest
+        run: |
+          jq -n \
+            --arg version "$VERSION" \
+            --arg url "$CDN_URL/Flarial.Launcher.macOS.tar.gz" \
+            --arg sha256 "$(shasum -a 256 Flarial.Launcher.macOS.tar.gz | cut -d' ' -f1)" \
+            --argjson size "$(stat -f %z Flarial.Launcher.macOS.tar.gz)" \
+            --arg signature "$(base64 -i Flarial.Launcher.macOS.tar.gz.sig | tr -d '\n')" \
+            '{version:$version,url:$url,sha256:$sha256,size:$size,signature:$signature}' > Flarial.Launcher.macOS.json
+          cat Flarial.Launcher.macOS.json
+
+      - name: Token
+        uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: flarialmc
+          repositories: newcdn
+
+      - name: CDN
+        uses: actions/checkout@v7
+        with:
+          repository: 'flarialmc/newcdn'
+          ref: 'main'
+          path: 'cdn'
+          token: ${{ steps.token.outputs.token }}
+
+      - name: Deploy
+        run: |
+          mkdir -p cdn/launcher/macos
+          cp Flarial.dmg Flarial.Launcher.macOS.tar.gz Flarial.Launcher.macOS.tar.gz.sig Flarial.Launcher.macOS.json cdn/launcher/macos/
+          cd cdn
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@example.com"
+          git add launcher/macos
+          git commit -m "Update macOS Launcher -> '$VERSION'"
+          for i in 1 2 3; do git push && exit 0; git pull --rebase; done
+          exit 1
