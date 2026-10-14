@@ -16,7 +16,7 @@ namespace Flarial.Runtime.Linux.Prefix;
 /// </summary>
 internal sealed class PrefixManager(IEngine engine) : IPrefix
 {
-    const int SetupVersion = 2; // bump to re-apply shims and registry tweaks
+    const int SetupVersion = 3; // bump to re-apply shims and registry tweaks
 
     static readonly string[] SystemShims = ["xgameruntime.dll", "mcwinrt.dll", "flarial_vault.dll"];
 
@@ -59,6 +59,12 @@ internal sealed class PrefixManager(IEngine engine) : IPrefix
             "MICROSOFT_WINDOWSAPPRUNTIME_BOOTSTRAP_INITIALIZE_SHOWUI"="0"
             "MICROSOFT_WINDOWSAPPRUNTIME_BOOTSTRAP_INITIALIZE_FAILFAST"="0"
             "MICROSOFT_WINDOWSAPPRUNTIME_DEPLOYMENT_INITIALIZE_ONERRORSHOWUI"="0"
+
+            ; No crash debugger: GameInputRedistService.exe always crashes under Wine (NtQueryWnfStateData), and the winedbg it spawned
+            ; read as a game crash to the launcher (inject wait, startup retries). A crashing process now just exits.
+            [HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]
+            "Debugger"=""
+            "Auto"="1"
 
             [HKEY_CURRENT_USER\Software\Wine\Mac Driver]
             "RetinaMode"="y"
