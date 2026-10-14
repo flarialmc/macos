@@ -1,18 +1,22 @@
 #!/bin/bash
-# Wraps a published osx-arm64 launcher into Flarial.app (name, bundle id, icon, version) and signs it ad hoc.
+# Wraps a published osx-arm64 launcher into Flarial.app (name, bundle id, icon, version) and signs it.
 #   tools/make-app-macos.sh [out dir]      (default: publish)
-# Notarised signing and the DMG come later; an ad hoc signature is enough to run a locally built app.
+# Signed with MACOS_SIGN_IDENTITY (Developer ID, hardened runtime) when set, otherwise ad hoc (tools/sign-macos.sh).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/publish}"
 PUB="$OUT/osx-arm64"
 DOTNET="${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}"
-"$DOTNET" publish "$ROOT/src/Flarial.Launcher" -c Release -r osx-arm64 -o "$PUB" >/dev/null
+"$DOTNET" publish "$ROOT/src/Flarial.Launcher" -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true -o "$PUB" >/dev/null
 VERSION="$(tr -d '[:space:]' < "$ROOT/version.txt")"
 APP="$OUT/Flarial.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp -R "$PUB/." "$APP/Contents/MacOS/"
+# Contents/MacOS may hold only code (or the bundle signature cannot seal it): the single-file launcher and native dylibs. Data goes to Resources.
+for f in "$PUB"/*; do
+  case "$f" in *.pdb|*.dbg) continue;; esac
+  if file -b "$f" | grep -q "Mach-O"; then cp "$f" "$APP/Contents/MacOS/"; else cp -R "$f" "$APP/Contents/Resources/"; fi
+done
 cp "$ROOT/assets/macos/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -33,5 +37,5 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --deep --sign - "$APP" 2>/dev/null
+"$ROOT/tools/sign-macos.sh" "$APP" >/dev/null
 echo "$APP"

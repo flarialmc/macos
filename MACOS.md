@@ -28,8 +28,11 @@ with the same key as Linux (secret `LINUX_UPDATE_PRIVATE_KEY`), and pushes all o
 `~/Library/Application Support/Flarial/macOS/launcher/previous` and puts the new one in its place; a version that never reaches "Ready!"
 is rolled back on the next start. Only works from a writable `Flarial.app` (dragged to Applications), not from the DMG itself.
 
-The app is signed ad hoc, not notarised: on first open macOS asks to allow it (System Settings > Privacy & Security > Open Anyway).
-A Developer ID certificate (Apple Developer Program) would remove that. Controllers do not work yet (the GameInput service crashes under
+Signing: CI signs with the Developer ID certificate (secrets `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD`) with the hardened runtime
+(`packaging/macos/Flarial.entitlements`: JIT, unsigned executable memory, library validation off for the native libraries), then
+notarizes and staples both the app and the DMG with an App Store Connect API key (`NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`).
+The app is published single-file so `Contents/MacOS` holds only code (the bundle signature requires it); `version.txt` is in
+`Contents/Resources`. Local builds without `MACOS_SIGN_IDENTITY` are signed ad hoc. Controllers do not work yet (the GameInput service crashes under
 Wine); keyboard and mouse do.
 
 ## What carries over unchanged

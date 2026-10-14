@@ -21,7 +21,8 @@ static class UpdaterSelfTest
     static void FakeApp(string app, string version)
     {
         var macos = Path.Combine(app, "Contents", "MacOS"); Directory.CreateDirectory(macos);
-        File.WriteAllText(Path.Combine(macos, "version.txt"), version);
+        Directory.CreateDirectory(Path.Combine(app, "Contents", "Resources"));
+        File.WriteAllText(Path.Combine(app, "Contents", "Resources", "version.txt"), version);
         File.WriteAllText(Path.Combine(macos, "Flarial.Launcher"), "#!/bin/sh\n");
     }
 
@@ -65,7 +66,7 @@ static class UpdaterSelfTest
         FakeApp(bundle, "2026.1.1.1");
         var u = new LauncherUpdater(bundle, state, url + "m.json", pub, _ => { });
         async Task<UpdateManifest?> Offer(UpdateManifest m, string installed) { manifestJson = J(m); return await u.CheckAsync(installed); }
-        string? Prev() { try { return File.ReadAllText(Path.Combine(state, "previous", "Flarial.app", "Contents", "MacOS", "version.txt")).Trim(); } catch { return null; } }
+        string? Prev() { try { return File.ReadAllText(Path.Combine(state, "previous", "Flarial.app", "Contents", "Resources", "version.txt")).Trim(); } catch { return null; } }
 
         var v2 = Make("2026.1.1.2"); var v3 = Make("2026.1.1.3");
         Check("current version read from bundle", u.CurrentVersion == "2026.1.1.1");

@@ -55,7 +55,7 @@ public sealed class LauncherUpdater
     string HealthyFile => Path.Combine(_state, "healthy");
     string BadVersionFile => Path.Combine(_state, "bad-version");
 
-    static string BundleVersion(string bundle) => File.ReadAllText(Path.Combine(bundle, "Contents", "MacOS", "version.txt")).Trim();
+    static string BundleVersion(string bundle) => File.ReadAllText(Path.Combine(bundle, "Contents", "Resources", "version.txt")).Trim();
 
     /// <summary>The Flarial.app the process runs from, or null (dev build, translocated or not writable).</summary>
     public static string? RunningBundle()

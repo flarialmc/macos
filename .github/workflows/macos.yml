@@ -15,6 +15,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       UPDATE_PRIVATE_KEY: ${{ secrets.LINUX_UPDATE_PRIVATE_KEY }}
+      MACOS_SIGN_IDENTITY: "Developer ID Application: Ashank Sundaram (8DM67J2F6Q)"
       CDN_URL: https://cdn.flarial.xyz/launcher/macos
     steps:
       - name: Checkout
@@ -48,15 +49,49 @@ jobs:
           git commit -m "Version (macos) -> '$Version'"
           git push
 
+      - name: Certificate
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KC="$RUNNER_TEMP/signing.keychain-db"; KCPW="$(uuidgen)"
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          printf '%s' "$CERT_P12" | base64 -D > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KCPW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KC"
+
       - name: Build
         run: |
           tools/make-app-macos.sh publish
-          test "$(cat publish/Flarial.app/Contents/MacOS/version.txt)" = "$VERSION"
+          test "$(cat publish/Flarial.app/Contents/Resources/version.txt)" = "$VERSION"
+
+      - name: Notarize app
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          printf '%s\n' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          echo "NOTARY_ARGS=--key $RUNNER_TEMP/notary.p8 --key-id $NOTARY_KEY_ID --issuer $NOTARY_ISSUER" >> "$GITHUB_ENV"
+          ditto -c -k --keepParent publish/Flarial.app "$RUNNER_TEMP/Flarial.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Flarial.zip" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 30m
+          xcrun stapler staple publish/Flarial.app
+          spctl -a -t exec -vv publish/Flarial.app
 
       - name: Package
         run: |
           tar -czf Flarial.Launcher.macOS.tar.gz -C publish Flarial.app
           tools/make-dmg-macos.sh publish/Flarial.app Flarial.dmg
+          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" Flarial.dmg
+          xcrun notarytool submit Flarial.dmg $NOTARY_ARGS --wait --timeout 30m
+          xcrun stapler staple Flarial.dmg
+          spctl -a -t open --context context:primary-signature -vv Flarial.dmg
+          rm -f "$RUNNER_TEMP/notary.p8"
           ls -la Flarial.Launcher.macOS.tar.gz Flarial.dmg
 
       - name: Sign

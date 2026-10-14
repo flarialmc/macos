@@ -12,7 +12,9 @@ public static class FlarialLauncher
     // version.txt next to the executable (written by release CI), assembly version as fallback.
     static string ReadVersion()
     {
-        try { if (System.IO.File.ReadAllText(System.IO.Path.Combine(System.AppContext.BaseDirectory, "version.txt")).Trim() is { Length: > 0 } v) return v; } catch { }
+        // macOS bundle: Contents/MacOS holds only code, so version.txt sits in Contents/Resources
+        foreach (var f in new[] { "version.txt", System.IO.Path.Combine("..", "Resources", "version.txt") })
+            try { if (System.IO.File.ReadAllText(System.IO.Path.Combine(System.AppContext.BaseDirectory, f)).Trim() is { Length: > 0 } v) return v; } catch { }
         return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
     }
 
