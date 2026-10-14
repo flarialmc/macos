@@ -147,14 +147,9 @@ public sealed class SpotlightDecorator : Decorator
                     half3 light = uColor;
                     float finalIntensity = mix(0.15, 0.8, borderIntensity * 0.8);
 
-                    // switch r and b channels because windows is just dumb like that idk
-                    half4 c2 = c;
-                    c2.r = c.b;
-                    c2.b = c.r;
-
                     // Combine and Apply Opacity
                     // We multiply the added light by uOpacity
-                    return c2 + half4(light * spotIntensity * finalIntensity * uOpacity * 0.7, 0);
+                    return c + half4(light * spotIntensity * finalIntensity * uOpacity * 0.7, 0);
                 }";
 
             _effect = SKRuntimeEffect.CreateShader(shaderCode, out string error);
@@ -287,8 +282,10 @@ public sealed class SpotlightDecorator : Decorator
             canvas.Save();
             canvas.Translate((float)Bounds.X, (float)Bounds.Y);
 
-            // Using Rgba8888 based on your feedback that colors were inverted
-            var info = new SKImageInfo(_bmp.PixelSize.Width, _bmp.PixelSize.Height, SKColorType.Rgba8888);
+            // The buffer's pixel order is platform dependent (BGRA on Windows/Linux, RGBA on macOS): read it as what it is
+            var colorType = _bmp.Format == Avalonia.Platform.PixelFormat.Rgba8888 ? SKColorType.Rgba8888 : SKColorType.Bgra8888;
+            var alphaType = _bmp.AlphaFormat == Avalonia.Platform.AlphaFormat.Unpremul ? SKAlphaType.Unpremul : SKAlphaType.Premul;
+            var info = new SKImageInfo(_bmp.PixelSize.Width, _bmp.PixelSize.Height, colorType, alphaType);
 
             using var pixelMap = new SKPixmap(info, Marshal.AllocHGlobal(info.BytesSize));
 
