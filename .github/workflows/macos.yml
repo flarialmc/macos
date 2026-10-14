@@ -79,7 +79,7 @@ jobs:
           printf '%s\n' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
           echo "NOTARY_ARGS=--key $RUNNER_TEMP/notary.p8 --key-id $NOTARY_KEY_ID --issuer $NOTARY_ISSUER" >> "$GITHUB_ENV"
           ditto -c -k --keepParent publish/Flarial.app "$RUNNER_TEMP/Flarial.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/Flarial.zip" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 30m
+          xcrun notarytool submit "$RUNNER_TEMP/Flarial.zip" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 120m
           xcrun stapler staple publish/Flarial.app
           spctl -a -t exec -vv publish/Flarial.app
 
@@ -88,7 +88,7 @@ jobs:
           tar -czf Flarial.Launcher.macOS.tar.gz -C publish Flarial.app
           tools/make-dmg-macos.sh publish/Flarial.app Flarial.dmg
           codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" Flarial.dmg
-          xcrun notarytool submit Flarial.dmg $NOTARY_ARGS --wait --timeout 30m
+          xcrun notarytool submit Flarial.dmg $NOTARY_ARGS --wait --timeout 120m
           xcrun stapler staple Flarial.dmg
           spctl -a -t open --context context:primary-signature -vv Flarial.dmg
           rm -f "$RUNNER_TEMP/notary.p8"
