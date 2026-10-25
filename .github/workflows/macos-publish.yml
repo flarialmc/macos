@@ -141,7 +141,7 @@ jobs:
   requeue:
     needs: publish
     if: needs.publish.outputs.state == 'waiting' && github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, flarial-ci, rajesh-gb-1]
     steps:
       - name: Next check in 20 minutes
         env:
