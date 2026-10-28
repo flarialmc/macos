@@ -147,6 +147,7 @@ sealed class InjectorCore(IEngine engine) : IInjectorCore
         6 => "Could not create the remote thread.",
         7 => "LoadLibrary failed (bad, 32-bit or missing dependencies).",
         8 => "LoadLibrary timed out.",
+        10 => "Could not resolve the game process loader address.",
         _ => $"Injector failed (exit {code})."
     };
 
