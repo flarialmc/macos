@@ -99,6 +99,34 @@ static DWORD find_pid(const wchar_t *name)
     return pid;
 }
 
+/* Wine may relocate system modules differently in the game and injector.
+ * Locate the module that actually owns an export (including forwarded exports),
+ * then translate its RVA into the target process's copy of that module. */
+static FARPROC remote_proc_address(DWORD pid, FARPROC local)
+{
+    HMODULE owner = NULL;
+    wchar_t path[MAX_PATH];
+    if (!local || !GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)local, &owner))
+        return NULL;
+    DWORD length = GetModuleFileNameW(owner, path, MAX_PATH);
+    if (!length || length >= MAX_PATH) return NULL;
+    ULONG_PTR offset = (ULONG_PTR)local - (ULONG_PTR)owner;
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
+    if (snapshot == INVALID_HANDLE_VALUE) return NULL;
+    MODULEENTRY32W module;
+    module.dwSize = sizeof(module);
+    FARPROC remote = NULL;
+    if (Module32FirstW(snapshot, &module)) do {
+        if (!_wcsicmp(module.szModule, base_name(path)) && offset < module.modBaseSize) {
+            remote = (FARPROC)(module.modBaseAddr + offset);
+            break;
+        }
+    } while (Module32NextW(snapshot, &module));
+    CloseHandle(snapshot);
+    return remote;
+}
+
 typedef HRESULT (WINAPI *SetThreadDescription_t)(HANDLE, PCWSTR);
 
 #define PAYLOAD_ENV L"FLARIAL_LAUNCHER_PAYLOAD"
@@ -139,7 +167,7 @@ static void describe_thread(HANDLE th, const wchar_t *payload)
 /* Loads one library into the target through LoadLibraryW on a remote thread. With a payload the thread is created
  * suspended and described before it runs, so the library's DllMain sees it on its own (current) thread.
  * Returns 0 on success or the exit code to report. */
-static int load_library(HANDLE h, const wchar_t *dll, const wchar_t *payload)
+static int load_library(HANDLE h, LPTHREAD_START_ROUTINE loadlib, const wchar_t *dll, const wchar_t *payload)
 {
     SIZE_T n = (wcslen(dll) + 1) * sizeof(wchar_t);
     void *rem = VirtualAllocEx(h, NULL, n, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -153,11 +181,7 @@ static int load_library(HANDLE h, const wchar_t *dll, const wchar_t *payload)
         return 5;
     }
 
-    /* kernel32 is mapped at the same address in every Wine process, so the
-     * target can call our LoadLibraryW pointer directly. */
-    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
-    FARPROC loadlib = GetProcAddress(k32, "LoadLibraryW");
-    HANDLE th = CreateRemoteThread(h, NULL, 0, (LPTHREAD_START_ROUTINE)loadlib,
+    HANDLE th = CreateRemoteThread(h, NULL, 0, loadlib,
                                    rem, payload ? CREATE_SUSPENDED : 0, NULL);
     if (!th) {
         fwprintf(stderr, L"ERR CreateRemoteThread: %lu\n", GetLastError());
@@ -226,16 +250,24 @@ int wmain(int argc, wchar_t **argv)
                            PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!h) { fwprintf(stderr, L"ERR OpenProcess: %lu\n", GetLastError()); return 4; }
 
+    FARPROC local = GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW");
+    LPTHREAD_START_ROUTINE loadlib = (LPTHREAD_START_ROUTINE)remote_proc_address(pid, local);
+    if (!loadlib) {
+        fwprintf(stderr, L"ERR resolve LoadLibraryW in target process\n");
+        CloseHandle(h);
+        return 10;
+    }
+
     int last = argc - 1;
     for (int i = 2; i < last; ++i) {
-        int dep = load_library(h, argv[i], NULL);
+        int dep = load_library(h, loadlib, argv[i], NULL);
         if (dep) fwprintf(stderr, L"WARN dependency not loaded (%d): %ls\n", dep, argv[i]);
         /* a timed-out LoadLibrary still holds the loader lock in the target: every further remote load would
          * block behind it for its full wait, so stop here instead of stacking 15 s timeouts */
         if (dep == 8) { CloseHandle(h); return 8; }
     }
 
-    int code = load_library(h, argv[last], payload);
+    int code = load_library(h, loadlib, argv[last], payload);
     CloseHandle(h);
     if (payload) { SecureZeroMemory(payload, wcslen(payload) * sizeof(wchar_t)); HeapFree(GetProcessHeap(), 0, payload); }
     if (code) return code;
