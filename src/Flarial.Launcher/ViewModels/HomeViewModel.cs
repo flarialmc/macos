@@ -54,10 +54,12 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
             if (!await _mainWindowViewModel.EnsureDependenciesAsync()) return;
             var path = _settings.CustomDllPath;
             var beta = _settings.BuildType is BuildType.Beta;
+            var alphaV3 = _settings.BuildType is BuildType.AlphaV3;
             var release = _settings.BuildType is BuildType.Release;
 
             FlarialClient? client = null;
             if (beta) client = FlarialClientBeta._;
+            if (alphaV3) client = FlarialClientAlphaV3._;
             if (release) client = FlarialClientRelease._;
 
             if (!GamingServices.IsInstalled)
@@ -115,6 +117,9 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
             if (beta && !await ClientBetaActiveDialog._.ShowAsync())
                 return;
 
+            if (alphaV3 && !await ClientAlphaV3ActiveDialog._.ShowAsync())
+                return;
+
             if (FlarialClient.IsRunning)
             {
                 await ClientAlreadyInjectedDialog._.ShowAsync();
@@ -132,7 +137,15 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
 
             if (!await prepared)
             {
-                await ClientUpdateFailureDialog._.ShowAsync();
+                var failure = alphaV3 ? FlarialClientAlphaV3._.Failure : default;
+
+                if (failure is FlarialClientAlphaV3Failure.Unavailable)
+                    await ClientAlphaV3UnavailableDialog._.ShowAsync();
+                else if (failure is FlarialClientAlphaV3Failure.Unauthorized)
+                    await ClientAlphaV3AccessDialog._.ShowAsync();
+                else
+                    await ClientUpdateFailureDialog._.ShowAsync();
+
                 return;
             }
 
