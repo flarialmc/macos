@@ -168,7 +168,7 @@ public sealed partial class SettingsGeneralViewModel : ViewModelBase
         _mainWindowViewModel = mainWindowViewModel;
         _settings = ((App)Application.Current!).Settings;
 
-        BuildTypes = [_releaseItem, _betaItem, _customItem, _alphaV3Item];
+        BuildTypes = [_releaseItem, _betaItem, _alphaV3Item, _customItem];
 
         switch (_settings.BuildType)
         {

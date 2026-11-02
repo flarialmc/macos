@@ -114,10 +114,10 @@ public sealed partial class HomeViewModel : ViewModelBase, IProgress<int>
                 return;
             }
 
-            if (alphaV3 && !await ClientAlphaV3ActiveDialog._.ShowAsync())
+            if (beta && !await ClientBetaActiveDialog._.ShowAsync())
                 return;
 
-            if (beta && !await ClientBetaActiveDialog._.ShowAsync())
+            if (alphaV3 && !await ClientAlphaV3ActiveDialog._.ShowAsync())
                 return;
 
             if (FlarialClient.IsRunning)
