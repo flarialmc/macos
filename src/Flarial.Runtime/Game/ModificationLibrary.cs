@@ -11,6 +11,8 @@ public sealed class ModificationLibrary(string? path)
 
     internal PortableImage? Open() => _path is { } ? PortableImage.Open(_path) : null;
 
+    internal bool HasExport(string name) => Open() is { } image && image.Exports.Contains(name);
+
     internal string AsPath()
     {
         if (_path is null)

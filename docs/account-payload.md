@@ -12,7 +12,7 @@ A JSON object stored as the **thread description** of the thread that loads the 
 
 * Signed out: `{"access_token":null}` (what upstream sends; the client ignores it).
 * The client reads it with `GetThreadDescription(GetCurrentThread())` in `DLL_PROCESS_ATTACH`, clears it, and accepts it only if it is at most 64 KiB, a JSON object with a non-empty string `access_token` of at most 4096 printable ASCII characters.
-* `FlarialClient.CreatePayload` (`src/Flarial.Runtime/Core/FlarialClient/FlarialClient.Loader.cs`) builds it from `FlarialClient.AccessToken`, which `AuthenticationManager` sets on every silent sign-in and clears on logout. Both release and beta get it; custom DLLs (`Injector.Launch`, `--inject`) get nothing, as upstream.
+* `FlarialClient.CreatePayload` (`src/Flarial.Runtime/Core/FlarialClient/FlarialClient.Loader.cs`) builds it from `FlarialClient.AccessToken`, which `AuthenticationManager` sets on every silent sign-in and clears on logout. Release, beta and alpha (v3) get it; custom DLLs (`Injector.Launch`, `--inject`) get nothing, as upstream.
 
 ## Delivery on Linux
 

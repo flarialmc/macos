@@ -22,13 +22,7 @@ public sealed class FlarialClientBeta : FlarialClient<FlarialClientBeta>
             - The export table is read from the PE image instead of calling GetProcAddress on a loaded module.
         */
 
-        var symbol = $"_{await GetRemoteHashAsync()}_";
-        ModificationLibrary library = new(FileName);
-
-        if (library.Open() is not { } image)
-            return false;
-
-        return image.Exports.Contains(symbol);
+        return new ModificationLibrary(FileName).HasExport($"_{await GetRemoteHashAsync()}_");
     }
 
     private protected override async Task<bool> OnDownloadAsync<T>(T progress)
